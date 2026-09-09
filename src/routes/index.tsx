@@ -119,7 +119,7 @@ function Dashboard() {
     setTimeout(() => {
       setMessages((m) => [
         ...m,
-        { role: "jarvis", text: JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length] },
+        { role: "jarvis", text: JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length] ?? "" },
       ]);
     }, 900);
   };
