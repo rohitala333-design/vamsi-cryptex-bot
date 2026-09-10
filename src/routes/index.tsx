@@ -139,6 +139,8 @@ function Dashboard() {
     { role: "jarvis", text: "Good to see you, boss. Markets are live — how can I help?", time: istTime() },
   ]);
   const [input, setInput] = useState("");
+  const [continuous, setContinuous] = useState(false);
+  const continuousRef = useRef(false);
   const replyIdx = useRef(0);
   const tamilIdx = useRef(0);
   const alertId = useRef(1);
