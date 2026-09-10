@@ -300,6 +300,30 @@ function Dashboard() {
     }
   }, [listening, send]);
 
+  const toggleContinuous = useCallback(() => {
+    if (continuousRef.current) {
+      continuousRef.current = false;
+      setContinuous(false);
+      if (recRef.current) {
+        try {
+          recRef.current.stop();
+        } catch {
+          /* noop */
+        }
+      }
+      setMessages((m) => [...m, { role: "jarvis", text: TAMIL_STOP, time: istTime() }]);
+      speakTamil(TAMIL_STOP);
+      return;
+    }
+    continuousRef.current = true;
+    setContinuous(true);
+    setMessages((m) => [...m, { role: "jarvis", text: TAMIL_GREETING, time: istTime() }]);
+    speakTamil(TAMIL_GREETING);
+    setTimeout(() => {
+      if (continuousRef.current) startListening();
+    }, 3200);
+  }, [speakTamil, startListening]);
+
   const stopListening = useCallback(() => {
     if (recRef.current) {
       try {
