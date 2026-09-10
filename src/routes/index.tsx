@@ -224,10 +224,14 @@ function Dashboard() {
       const msg = (text ?? input).trim();
       if (!msg) return;
       setInput("");
+      if (tamil && isStopCommand(msg)) {
+        continuousRef.current = false;
+        setContinuous(false);
+      }
       setMessages((m) => [...m, { role: "user", text: msg, time: istTime() }]);
       setTimeout(() => {
         const reply = tamil
-          ? TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!
+          ? tamilReplyFor(msg, TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!)
           : JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length]!;
         setMessages((m) => [...m, { role: "jarvis", text: reply, time: istTime() }]);
         if (tamil) speakTamil(reply);
