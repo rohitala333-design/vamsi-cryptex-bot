@@ -261,7 +261,20 @@ function Dashboard() {
       rec.onend = () => {
         setListening(false);
         setHeard((t) => {
-          send(t || "Give me a market update", true);
+          const said = t || "Give me a market update";
+          send(said, true);
+          if (continuousRef.current && !isStopCommand(said)) {
+            setTimeout(() => {
+              if (continuousRef.current) {
+                try {
+                  rec.start();
+                  setListening(true);
+                } catch {
+                  /* noop */
+                }
+              }
+            }, 2600);
+          }
           return t;
         });
       };
