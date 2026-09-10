@@ -553,7 +553,17 @@ function Dashboard() {
       </main>
 
       {/* Voice button */}
-      <div className="fixed inset-x-0 bottom-6 z-10 flex justify-center">
+      <div className="fixed inset-x-0 bottom-6 z-10 flex flex-wrap items-center justify-center gap-3 px-4">
+        <button
+          onClick={toggleContinuous}
+          className={`rounded-full border px-4 py-3 text-sm font-semibold shadow-xl transition-colors ${
+            continuous
+              ? "border-emerald-400 bg-emerald-500/20 text-emerald-300"
+              : "border-slate-700 bg-slate-800 text-slate-200 hover:border-blue-500"
+          }`}
+        >
+          {continuous ? "🔴 உரையாடலை நிறுத்து" : "🔁 தொடர் உரையாடல்"}
+        </button>
         <button
           onMouseDown={startListening}
           onMouseUp={stopListening}
