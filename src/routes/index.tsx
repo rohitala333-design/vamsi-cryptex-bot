@@ -63,6 +63,32 @@ const TAMIL_REPLIES = [
   "ஏங்க, மார்க்கெட் சென்டிமெண்ட் பாசிட்டிவ். ஸ்டாப் லாஸ் மட்டும் வெச்சுக்கோங்க.",
 ];
 
+const TAMIL_GREETING =
+  "வணக்கம்! நான் உங்கள் வம்சி ஜார்விஸ். உங்களுக்கு என்ன உதவி வேண்டும்?";
+const TAMIL_STOP = "சரிங்க ஏங்க, நான் நிறுத்துறேன். பிறகு சந்திப்போம்!";
+
+function isStopCommand(text: string) {
+  const t = text.toLowerCase();
+  return t.includes("நிறுத்து") || t.includes("stop") || t.includes("exit");
+}
+
+/** Keyword routing, same idea as the Python assistant's if/elif chain. */
+function tamilReplyFor(text: string, fallback: string) {
+  const t = text.toLowerCase();
+  if (isStopCommand(t)) return TAMIL_STOP;
+  if (t.includes("வணக்கம்") || t.includes("hello") || t.includes("hi"))
+    return "வணக்கம் ஏங்க! இன்று உங்களுக்கு நான் எப்படி உதவட்டும்?";
+  if (t.includes("யார் நீ") || t.includes("உன் பெயர்") || t.includes("who are you"))
+    return "ஏங்க, நான் உங்கள் வம்சி ஜார்விஸ் அசிஸ்டெண்ட்.";
+  if (t.includes("போர்ட்ஃபோலியோ") || t.includes("portfolio"))
+    return "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல இருக்கு. பெரிய கவலை இல்ல.";
+  if (t.includes("பிரேக்அவுட்") || t.includes("breakout"))
+    return "ஏங்க, RVOL ஸ்பைக் ஆன கோயின்கள்ல பிரேக்அவுட் வர வாய்ப்பு இருக்கு. அலெர்ட் வெச்சுக்கோங்க.";
+  if (t.includes("விலை") || t.includes("price") || t.includes("பிட்காயின்") || t.includes("btc"))
+    return "ஏங்க, பிட்காயின் இப்போ மேல்நோக்கி நகருது. மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.";
+  return fallback;
+}
+
 function istTime(d = new Date()) {
   return (
     d.toLocaleTimeString("en-IN", {
@@ -113,6 +139,8 @@ function Dashboard() {
     { role: "jarvis", text: "Good to see you, boss. Markets are live — how can I help?", time: istTime() },
   ]);
   const [input, setInput] = useState("");
+  const [continuous, setContinuous] = useState(false);
+  const continuousRef = useRef(false);
   const replyIdx = useRef(0);
   const tamilIdx = useRef(0);
   const alertId = useRef(1);
@@ -196,10 +224,14 @@ function Dashboard() {
       const msg = (text ?? input).trim();
       if (!msg) return;
       setInput("");
+      if (tamil && isStopCommand(msg)) {
+        continuousRef.current = false;
+        setContinuous(false);
+      }
       setMessages((m) => [...m, { role: "user", text: msg, time: istTime() }]);
       setTimeout(() => {
         const reply = tamil
-          ? TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!
+          ? tamilReplyFor(msg, TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!)
           : JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length]!;
         setMessages((m) => [...m, { role: "jarvis", text: reply, time: istTime() }]);
         if (tamil) speakTamil(reply);
@@ -229,7 +261,20 @@ function Dashboard() {
       rec.onend = () => {
         setListening(false);
         setHeard((t) => {
-          send(t || "Give me a market update", true);
+          const said = t || "Give me a market update";
+          send(said, true);
+          if (continuousRef.current && !isStopCommand(said)) {
+            setTimeout(() => {
+              if (continuousRef.current) {
+                try {
+                  rec.start();
+                  setListening(true);
+                } catch {
+                  /* noop */
+                }
+              }
+            }, 2600);
+          }
           return t;
         });
       };
@@ -254,6 +299,30 @@ function Dashboard() {
       }, 90);
     }
   }, [listening, send]);
+
+  const toggleContinuous = useCallback(() => {
+    if (continuousRef.current) {
+      continuousRef.current = false;
+      setContinuous(false);
+      if (recRef.current) {
+        try {
+          recRef.current.stop();
+        } catch {
+          /* noop */
+        }
+      }
+      setMessages((m) => [...m, { role: "jarvis", text: TAMIL_STOP, time: istTime() }]);
+      speakTamil(TAMIL_STOP);
+      return;
+    }
+    continuousRef.current = true;
+    setContinuous(true);
+    setMessages((m) => [...m, { role: "jarvis", text: TAMIL_GREETING, time: istTime() }]);
+    speakTamil(TAMIL_GREETING);
+    setTimeout(() => {
+      if (continuousRef.current) startListening();
+    }, 3200);
+  }, [speakTamil, startListening]);
 
   const stopListening = useCallback(() => {
     if (recRef.current) {
@@ -484,7 +553,17 @@ function Dashboard() {
       </main>
 
       {/* Voice button */}
-      <div className="fixed inset-x-0 bottom-6 z-10 flex justify-center">
+      <div className="fixed inset-x-0 bottom-6 z-10 flex flex-wrap items-center justify-center gap-3 px-4">
+        <button
+          onClick={toggleContinuous}
+          className={`rounded-full border px-4 py-3 text-sm font-semibold shadow-xl transition-colors ${
+            continuous
+              ? "border-emerald-400 bg-emerald-500/20 text-emerald-300"
+              : "border-slate-700 bg-slate-800 text-slate-200 hover:border-blue-500"
+          }`}
+        >
+          {continuous ? "🔴 உரையாடலை நிறுத்து" : "🔁 தொடர் உரையாடல்"}
+        </button>
         <button
           onMouseDown={startListening}
           onMouseUp={stopListening}
