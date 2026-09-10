@@ -34,6 +34,25 @@ async function openInterestChange(symbol: string): Promise<number> {
   }
 }
 
+/** Real relative volume: current hour's volume vs the average hour of the last 24h. */
+async function relativeVolume(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=25`
+    );
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown[][];
+    const vols = rows.map((r) => Number(r[7]));
+    const current = vols[vols.length - 1] ?? 0;
+    const past = vols.slice(0, -1);
+    const avg = past.reduce((s, v) => s + v, 0) / (past.length || 1);
+    if (!avg) return null;
+    return Number((current / avg).toFixed(2));
+  } catch {
+    return null;
+  }
+}
+
 /** Top 200 Binance USDT perpetual futures pairs by 24h quote volume. */
 export const getTopFutures = createServerFn({ method: "GET" }).handler(async () => {
   const res = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr");
@@ -45,25 +64,27 @@ export const getTopFutures = createServerFn({ method: "GET" }).handler(async () 
     .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
     .slice(0, 200);
 
-  const volumes = sorted.map((t) => Number(t.quoteVolume)).sort((a, b) => a - b);
-  const median = volumes[Math.floor(volumes.length / 2)] || 1;
-
   const coins: LiveCoin[] = sorted.map((t) => ({
     symbol: `${t.symbol}.P`,
     base: t.symbol.replace(/USDT$/, ""),
     price: Number(t.lastPrice),
     change: Number(t.priceChangePercent),
     quoteVolume: Number(t.quoteVolume),
-    rvol: Number((Number(t.quoteVolume) / median).toFixed(2)),
+    rvol: 1,
     oi: 0,
   }));
 
-  // Real open-interest change (last 6h) for the most active pairs.
-  const head = coins.slice(0, 12);
-  const ois = await Promise.all(head.map((c) => openInterestChange(c.base + "USDT")));
+  // Real relative volume + open-interest change (last 6h) for the most active pairs.
+  const head = coins.slice(0, 14);
+  const [ois, rvols] = await Promise.all([
+    Promise.all(head.map((c) => openInterestChange(c.base + "USDT"))),
+    Promise.all(head.map((c) => relativeVolume(c.base + "USDT"))),
+  ]);
   head.forEach((c, i) => {
     c.oi = Number((ois[i] ?? 0).toFixed(2));
+    c.rvol = rvols[i] ?? 1;
   });
 
   return { scanned: coins.length, coins, updatedAt: Date.now() };
 });
+
