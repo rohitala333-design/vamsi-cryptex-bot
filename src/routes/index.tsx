@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getTopFutures } from "@/lib/market.functions";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -129,8 +131,12 @@ function Badge({ label, value, good }: { label: string; value: string; good: boo
   );
 }
 
+const COLORS = ["#f7931a", "#627eea", "#14f195", "#f3ba2f", "#25a4e8", "#c2a633", "#8b5cf6", "#ec4899", "#22d3ee", "#f97316", "#84cc16", "#e11d48"];
+
 function Dashboard() {
   const [coins, setCoins] = useState(INITIAL_COINS);
+  const [scanned, setScanned] = useState(0);
+  const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
   const [clock, setClock] = useState(istTime());
@@ -146,54 +152,78 @@ function Dashboard() {
   const alertId = useRef(1);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
+  const sparks = useRef<Record<string, number[]>>({});
+  const seenAlert = useRef<Record<string, number>>({});
 
-  // Live price ticker + scanner
+  // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
-    const id = setInterval(() => {
-      setClock(istTime());
-      setCoins((prev) =>
-        prev.map((c) => {
-          const drift = (Math.random() - 0.48) * 0.004;
-          const price = c.price * (1 + drift);
+    let stopped = false;
+    const holdings: Record<string, number> = {};
+    INITIAL_COINS.forEach((c) => (holdings[c.symbol] = c.holdings));
+
+    const load = async () => {
+      try {
+        const res = await getTopFutures();
+        if (stopped) return;
+        setScanned(res.scanned);
+        setFeedError("");
+        setClock(istTime());
+
+        const live: Coin[] = res.coins.slice(0, 12).map((c, i) => {
+          const hist = sparks.current[c.base] ?? [];
+          const next = [...hist, c.price].slice(-10);
+          sparks.current[c.base] = next;
           return {
-            ...c,
-            price,
-            change: c.change + drift * 100,
-            rvol: Math.max(0.4, c.rvol + (Math.random() - 0.5) * 0.35),
-            oi: c.oi + (Math.random() - 0.5) * 1.4,
-            spark: [...c.spark.slice(1), price / (c.symbol === "BTC" ? 1000 : c.symbol === "ETH" ? 60 : c.symbol === "BNB" ? 10 : c.price > 1 ? 5 : 0.003)],
+            symbol: c.base,
+            name: c.symbol,
+            price: c.price,
+            change: c.change,
+            color: COLORS[i % COLORS.length]!,
+            holdings: holdings[c.base] ?? 0,
+            spark: next.length > 1 ? next : [c.price, c.price],
+            rvol: c.rvol,
+            oi: c.oi,
           };
-        })
-      );
-    }, 2000);
-    return () => clearInterval(id);
+        });
+        setCoins(live);
+
+        // Breakout alerts straight from live momentum
+        const hits = res.coins
+          .filter((c) => Math.abs(c.change) >= 4 && c.rvol >= 1.5)
+          .slice(0, 6);
+        if (hits.length) {
+          setAlerts((prev) => {
+            const fresh = hits
+              .filter((h) => Date.now() - (seenAlert.current[h.base] ?? 0) > 120000)
+              .map((h) => {
+                seenAlert.current[h.base] = Date.now();
+                return {
+                  id: alertId.current++,
+                  symbol: h.symbol,
+                  dir: (h.change >= 0 ? "up" : "down") as "up" | "down",
+                  rvol: h.rvol,
+                  oi: h.oi,
+                  time: istTime(),
+                };
+              });
+            return fresh.length ? [...fresh, ...prev].slice(0, 6) : prev;
+          });
+        }
+      } catch {
+        if (!stopped) setFeedError("Live feed unreachable — retrying…");
+      }
+    };
+
+    load();
+    const id = setInterval(load, 15000);
+    const tick = setInterval(() => setClock(istTime()), 2000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+      clearInterval(tick);
+    };
   }, []);
 
-  // Breakout alert feed
-  useEffect(() => {
-    const id = setInterval(() => {
-      setCoins((cur) => {
-        const c = cur[Math.floor(Math.random() * cur.length)];
-        if (c) {
-          setAlerts((a) =>
-            [
-              {
-                id: alertId.current++,
-                symbol: c.symbol,
-                dir: (c.change >= 0 ? "up" : "down") as "up" | "down",
-                rvol: c.rvol,
-                oi: c.oi,
-                time: istTime(),
-              },
-              ...a,
-            ].slice(0, 6)
-          );
-        }
-        return cur;
-      });
-    }, 6000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -354,7 +384,7 @@ function Dashboard() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            Scanner live • {clock}
+            {feedError || `Scanning ${scanned || 200} Binance futures pairs • ${clock}`}
           </div>
         </div>
       </header>
