@@ -384,7 +384,7 @@ function Dashboard() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            Scanner live • {clock}
+            {feedError || `Scanning ${scanned || 200} Binance futures pairs • ${clock}`}
           </div>
         </div>
       </header>
