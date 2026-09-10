@@ -63,6 +63,32 @@ const TAMIL_REPLIES = [
   "ஏங்க, மார்க்கெட் சென்டிமெண்ட் பாசிட்டிவ். ஸ்டாப் லாஸ் மட்டும் வெச்சுக்கோங்க.",
 ];
 
+const TAMIL_GREETING =
+  "வணக்கம்! நான் உங்கள் வம்சி ஜார்விஸ். உங்களுக்கு என்ன உதவி வேண்டும்?";
+const TAMIL_STOP = "சரிங்க ஏங்க, நான் நிறுத்துறேன். பிறகு சந்திப்போம்!";
+
+function isStopCommand(text: string) {
+  const t = text.toLowerCase();
+  return t.includes("நிறுத்து") || t.includes("stop") || t.includes("exit");
+}
+
+/** Keyword routing, same idea as the Python assistant's if/elif chain. */
+function tamilReplyFor(text: string, fallback: string) {
+  const t = text.toLowerCase();
+  if (isStopCommand(t)) return TAMIL_STOP;
+  if (t.includes("வணக்கம்") || t.includes("hello") || t.includes("hi"))
+    return "வணக்கம் ஏங்க! இன்று உங்களுக்கு நான் எப்படி உதவட்டும்?";
+  if (t.includes("யார் நீ") || t.includes("உன் பெயர்") || t.includes("who are you"))
+    return "ஏங்க, நான் உங்கள் வம்சி ஜார்விஸ் அசிஸ்டெண்ட்.";
+  if (t.includes("போர்ட்ஃபோலியோ") || t.includes("portfolio"))
+    return "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல இருக்கு. பெரிய கவலை இல்ல.";
+  if (t.includes("பிரேக்அவுட்") || t.includes("breakout"))
+    return "ஏங்க, RVOL ஸ்பைக் ஆன கோயின்கள்ல பிரேக்அவுட் வர வாய்ப்பு இருக்கு. அலெர்ட் வெச்சுக்கோங்க.";
+  if (t.includes("விலை") || t.includes("price") || t.includes("பிட்காயின்") || t.includes("btc"))
+    return "ஏங்க, பிட்காயின் இப்போ மேல்நோக்கி நகருது. மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.";
+  return fallback;
+}
+
 function istTime(d = new Date()) {
   return (
     d.toLocaleTimeString("en-IN", {
