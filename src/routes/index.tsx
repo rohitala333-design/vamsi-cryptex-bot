@@ -187,10 +187,11 @@ function Dashboard() {
         });
         setCoins(live);
 
-        // Breakout alerts straight from live momentum
+        // Breakout alerts from live price action (>= 4% move in top volume perps)
         const hits = res.coins
-          .filter((c) => Math.abs(c.change) >= 4 && c.rvol >= 1.5)
+          .filter((c) => Math.abs(c.change) >= 4)
           .slice(0, 6);
+
         if (hits.length) {
           setAlerts((prev) => {
             const fresh = hits
