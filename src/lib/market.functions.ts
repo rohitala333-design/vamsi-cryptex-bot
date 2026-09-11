@@ -34,17 +34,18 @@ async function openInterestChange(symbol: string): Promise<number> {
   }
 }
 
-/** Real relative volume: current hour's volume vs the average hour of the last 24h. */
+/** Real relative volume: most recent completed hour vs the average of the 24 hours before it. */
 async function relativeVolume(symbol: string): Promise<number | null> {
   try {
     const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=25`
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=26`
     );
     if (!res.ok) return null;
     const rows = (await res.json()) as unknown[][];
+    if (rows.length < 25) return null;
     const vols = rows.map((r) => Number(r[7]));
-    const current = vols[vols.length - 1] ?? 0;
-    const past = vols.slice(0, -1);
+    const current = vols[vols.length - 2] ?? 0; // last completed hour
+    const past = vols.slice(0, -2); // 24 completed hours before it
     const avg = past.reduce((s, v) => s + v, 0) / (past.length || 1);
     if (!avg) return null;
     return Number((current / avg).toFixed(2));
@@ -52,6 +53,7 @@ async function relativeVolume(symbol: string): Promise<number | null> {
     return null;
   }
 }
+
 
 /** Top 200 Binance USDT perpetual futures pairs by 24h quote volume. */
 export const getTopFutures = createServerFn({ method: "GET" }).handler(async () => {
