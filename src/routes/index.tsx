@@ -137,6 +137,8 @@ const COLORS = ["#f7931a", "#627eea", "#14f195", "#f3ba2f", "#25a4e8", "#c2a633"
 function Dashboard() {
   const [coins, setCoins] = useState(INITIAL_COINS);
   const [scanned, setScanned] = useState(0);
+  const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
+  const [nwTime, setNwTime] = useState("");
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
