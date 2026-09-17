@@ -158,6 +158,27 @@ function Dashboard() {
   const sparks = useRef<Record<string, number[]>>({});
   const seenAlert = useRef<Record<string, number>>({});
 
+  // Nadaraya-Watson 15m envelope scanner
+  useEffect(() => {
+    let stopped = false;
+    const run = async () => {
+      try {
+        const res = await getNadarayaSignals();
+        if (stopped) return;
+        setNwSignals(res.signals);
+        setNwTime(istTime());
+      } catch {
+        /* transient network errors are ignored */
+      }
+    };
+    run();
+    const id = setInterval(run, 60000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, []);
+
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
     let stopped = false;
