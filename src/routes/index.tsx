@@ -459,6 +459,56 @@ function Dashboard() {
           </div>
         </section>
 
+        {/* Nadaraya-Watson 15m signals */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              ✨ Nadaraya-Watson Envelope · 15m
+            </h2>
+            <span className="text-xs text-slate-500">
+              {nwTime ? `Updated at ${nwTime}` : "Scanning…"}
+            </span>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {nwSignals.length === 0 && (
+              <p className="px-4 py-4 text-sm text-slate-500">
+                No band touches on the last 15m candle — waiting for the next arrow.
+              </p>
+            )}
+            {nwSignals.map((s) => (
+              <div
+                key={`${s.symbol}-${s.candleTime}`}
+                className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
+              >
+                <span className="font-semibold">{s.symbol}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    s.signal === "BUY"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-red-500/15 text-red-400"
+                  }`}
+                >
+                  {s.signal === "BUY" ? "BUY 🟢 Green Arrow" : "SELL 🔴 Red Arrow"}
+                </span>
+                <span className="text-xs text-slate-400">
+                  Price {s.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                </span>
+                <span className="text-xs text-slate-500">
+                  Band {s.lower.toFixed(4)} – {s.upper.toFixed(4)}
+                </span>
+                <span className="ml-auto text-xs text-slate-500">
+                  {new Date(s.candleTime).toLocaleTimeString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  IST
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Breakout alerts */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
           <div className="border-b border-slate-800 px-4 py-3">
