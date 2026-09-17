@@ -16,7 +16,9 @@ export type LiveCoin = {
   quoteVolume: number;
   rvol: number;
   oi: number;
+  rsi: number;
 };
+
 
 async function openInterestChange(symbol: string): Promise<number> {
   try {
