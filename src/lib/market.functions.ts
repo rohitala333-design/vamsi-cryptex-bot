@@ -109,18 +109,22 @@ export const getTopFutures = createServerFn({ method: "GET" }).handler(async () 
     quoteVolume: Number(t.quoteVolume),
     rvol: 1,
     oi: 0,
+    rsi: 50,
   }));
 
-  // Real relative volume + open-interest change (last 6h) for the most active pairs.
+  // Real relative volume + open-interest change + RSI(14) for the most active pairs.
   const head = coins.slice(0, 14);
-  const [ois, rvols] = await Promise.all([
+  const [ois, rvols, rsis] = await Promise.all([
     Promise.all(head.map((c) => openInterestChange(c.base + "USDT"))),
     Promise.all(head.map((c) => relativeVolume(c.base + "USDT"))),
+    Promise.all(head.map((c) => rsi14(c.base + "USDT"))),
   ]);
   head.forEach((c, i) => {
     c.oi = Number((ois[i] ?? 0).toFixed(2));
     c.rvol = rvols[i] ?? 1;
+    c.rsi = rsis[i] ?? 50;
   });
+
 
   return { scanned: coins.length, coins, updatedAt: Date.now() };
 });
