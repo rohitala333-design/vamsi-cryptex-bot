@@ -53,8 +53,41 @@ async function relativeVolume(symbol: string): Promise<number | null> {
     return Number((current / avg).toFixed(2));
   } catch {
     return null;
+}
+
+/** Real RSI(14) from the last completed 15m candles. */
+async function rsi14(symbol: string): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=15m&limit=100`
+    );
+    if (!res.ok) return null;
+    const rows = (await res.json()) as unknown[][];
+    const closes = rows.map((r) => Number(r[4]));
+    if (closes.length < 20) return null;
+    let gain = 0;
+    let loss = 0;
+    for (let i = 1; i <= 14; i++) {
+      const d = (closes[i] ?? 0) - (closes[i - 1] ?? 0);
+      if (d >= 0) gain += d;
+      else loss -= d;
+    }
+    let ag = gain / 14;
+    let al = loss / 14;
+    for (let i = 15; i < closes.length; i++) {
+      const d = (closes[i] ?? 0) - (closes[i - 1] ?? 0);
+      ag = (ag * 13 + (d > 0 ? d : 0)) / 14;
+      al = (al * 13 + (d < 0 ? -d : 0)) / 14;
+    }
+    if (!al) return 100;
+    const rs = ag / al;
+    return Number((100 - 100 / (1 + rs)).toFixed(1));
+  } catch {
+    return null;
   }
 }
+
+
 
 
 /** Top 200 Binance USDT perpetual futures pairs by 24h quote volume. */
