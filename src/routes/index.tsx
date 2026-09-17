@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTopFutures } from "@/lib/market.functions";
+import { getNadarayaSignals, type NadarayaSignal } from "@/lib/nadaraya.functions";
 
 
 export const Route = createFileRoute("/")({
@@ -136,6 +137,8 @@ const COLORS = ["#f7931a", "#627eea", "#14f195", "#f3ba2f", "#25a4e8", "#c2a633"
 function Dashboard() {
   const [coins, setCoins] = useState(INITIAL_COINS);
   const [scanned, setScanned] = useState(0);
+  const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
+  const [nwTime, setNwTime] = useState("");
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
@@ -154,6 +157,27 @@ function Dashboard() {
   const recRef = useRef<any>(null);
   const sparks = useRef<Record<string, number[]>>({});
   const seenAlert = useRef<Record<string, number>>({});
+
+  // Nadaraya-Watson 15m envelope scanner
+  useEffect(() => {
+    let stopped = false;
+    const run = async () => {
+      try {
+        const res = await getNadarayaSignals();
+        if (stopped) return;
+        setNwSignals(res.signals);
+        setNwTime(istTime());
+      } catch {
+        /* transient network errors are ignored */
+      }
+    };
+    run();
+    const id = setInterval(run, 60000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, []);
 
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
@@ -430,6 +454,56 @@ function Dashboard() {
                   <Badge label="RVOL" value={`${c.rvol.toFixed(1)}x`} good={c.rvol >= 1.5} />
                   <Badge label="OI" value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`} good={c.oi >= 0} />
                 </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Nadaraya-Watson 15m signals */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              ✨ Nadaraya-Watson Envelope · 15m
+            </h2>
+            <span className="text-xs text-slate-500">
+              {nwTime ? `Updated at ${nwTime}` : "Scanning…"}
+            </span>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {nwSignals.length === 0 && (
+              <p className="px-4 py-4 text-sm text-slate-500">
+                No band touches on the last 15m candle — waiting for the next arrow.
+              </p>
+            )}
+            {nwSignals.map((s) => (
+              <div
+                key={`${s.symbol}-${s.candleTime}`}
+                className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
+              >
+                <span className="font-semibold">{s.symbol}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    s.signal === "BUY"
+                      ? "bg-emerald-500/15 text-emerald-400"
+                      : "bg-red-500/15 text-red-400"
+                  }`}
+                >
+                  {s.signal === "BUY" ? "BUY 🟢 Green Arrow" : "SELL 🔴 Red Arrow"}
+                </span>
+                <span className="text-xs text-slate-400">
+                  Price {s.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                </span>
+                <span className="text-xs text-slate-500">
+                  Band {s.lower.toFixed(4)} – {s.upper.toFixed(4)}
+                </span>
+                <span className="ml-auto text-xs text-slate-500">
+                  {new Date(s.candleTime).toLocaleTimeString("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  IST
+                </span>
               </div>
             ))}
           </div>
