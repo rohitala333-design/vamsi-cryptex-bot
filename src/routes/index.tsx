@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTopFutures } from "@/lib/market.functions";
+import { getNadarayaSignals, type NadarayaSignal } from "@/lib/nadaraya.functions";
 
 
 export const Route = createFileRoute("/")({
