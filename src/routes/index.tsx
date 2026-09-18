@@ -424,16 +424,26 @@ function Dashboard() {
           <p className="text-sm text-slate-400">Total Portfolio Value</p>
           <div className="mt-1 flex flex-wrap items-end gap-3">
             <span className="text-4xl font-bold tracking-tight">${fmt(portfolio)}</span>
-            <span
-              className={`mb-1 rounded-full px-2.5 py-1 text-sm font-semibold ${
-                dayChange >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
-              }`}
-            >
-              {dayChange >= 0 ? "▲" : "▼"} ${fmt(Math.abs(dayChange))} today
-            </span>
+            {portfolio > 0 && (
+              <span
+                className={`mb-1 rounded-full px-2.5 py-1 text-sm font-semibold ${
+                  dayChange >= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-red-500/15 text-red-400"
+                }`}
+              >
+                {dayChange >= 0 ? "▲" : "▼"} ${fmt(Math.abs(dayChange))} today
+              </span>
+            )}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Updated at {clock}</p>
+          <p className="mt-2 text-sm text-amber-300">
+            {portfolio > 0
+              ? "Live positions tracked."
+              : "No exchange account connected — no active trades are open."}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Updated at {clock}</p>
         </section>
+
 
         {/* Momentum coins */}
         <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
