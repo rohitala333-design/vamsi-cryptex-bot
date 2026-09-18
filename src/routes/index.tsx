@@ -146,8 +146,6 @@ function Dashboard() {
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
     let stopped = false;
-    const holdings: Record<string, number> = {};
-    INITIAL_COINS.forEach((c) => (holdings[c.symbol] = c.holdings));
 
     const load = async () => {
       try {
@@ -167,13 +165,15 @@ function Dashboard() {
             price: c.price,
             change: c.change,
             color: COLORS[i % COLORS.length]!,
-            holdings: holdings[c.base] ?? 0,
+            holdings: 0,
             spark: next.length > 1 ? next : [c.price, c.price],
             rvol: c.rvol,
             oi: c.oi,
+            rsi: c.rsi,
           };
         });
         setCoins(live);
+
 
         // Breakout alerts from live price action (>= 4% move in top volume perps)
         const hits = res.coins
