@@ -42,7 +42,15 @@ type Coin = {
 };
 
 type ChatMessage = { role: "user" | "jarvis"; text: string; time: string };
-type Alert = { id: number; symbol: string; dir: "up" | "down"; rvol: number; oi: number; time: string };
+type Alert = {
+  id: number;
+  symbol: string;
+  dir: "up" | "down";
+  rvol: number;
+  oi: number;
+  time: string;
+  kind: "price" | "nw";
+};
 
 const TAMIL_GREETING =
   "வணக்கம்! நான் உங்கள் வம்சி. லைவ் மார்க்கெட் ஸ்கேன் பண்ணிட்டு இருக்கேன் — என்ன கேக்கணும்?";
@@ -133,6 +141,30 @@ function Dashboard() {
         if (stopped) return;
         setNwSignals(res.signals);
         setNwTime(istTime());
+
+        // Feed fresh NW arrows into the live breakout alerts feed
+        const fresh = res.signals.filter(
+          (s) => !seenAlert.current[`nw-${s.symbol}-${s.candleTime}`]
+        );
+        if (fresh.length) {
+          for (const s of fresh) seenAlert.current[`nw-${s.symbol}-${s.candleTime}`] = Date.now();
+          setAlerts((prev) => {
+            const mapped = fresh.map((s) => {
+              const base = s.symbol.replace("/USDT", "");
+              const coin = coinsRef.current.find((c) => c.symbol === base);
+              return {
+                id: alertId.current++,
+                symbol: s.symbol,
+                dir: (s.signal === "BUY" ? "up" : "down") as "up" | "down",
+                rvol: coin?.rvol ?? 0,
+                oi: coin?.oi ?? 0,
+                time: istTime(),
+                kind: "nw" as const,
+              };
+            });
+            return [...mapped, ...prev].slice(0, 8);
+          });
+        }
       } catch {
         /* transient network errors are ignored */
       }
@@ -195,6 +227,7 @@ function Dashboard() {
                   rvol: h.rvol,
                   oi: h.oi,
                   time: istTime(),
+                  kind: "price" as const,
                 };
               });
             return fresh.length ? [...fresh, ...prev].slice(0, 6) : prev;
@@ -225,10 +258,20 @@ function Dashboard() {
     () => coins.reduce((s, c) => s + c.price * c.holdings * (c.change / 100), 0),
     [coins]
   );
-  const momentum = useMemo(
-    () => [...coins].sort((a, b) => b.rvol - a.rvol).slice(0, 3),
-    [coins]
-  );
+  // Momentum ranking: volume spike score boosted by fresh Nadaraya-Watson arrows
+  const momentum = useMemo(() => {
+    const nwMap = new Map(
+      nwSignals.map((s) => [s.symbol.replace("/USDT", ""), s.signal] as const)
+    );
+    return [...coins]
+      .map((c) => ({ ...c, nw: nwMap.get(c.symbol) as "BUY" | "SELL" | undefined }))
+      .sort(
+        (a, b) =>
+          b.rvol + (b.nw ? 2 : 0) + Math.max(b.change, 0) / 10 -
+          (a.rvol + (a.nw ? 2 : 0) + Math.max(a.change, 0) / 10)
+      )
+      .slice(0, 3);
+  }, [coins, nwSignals]);
 
   const speakTamil = useCallback((text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -463,8 +506,23 @@ function Dashboard() {
                     {c.change.toFixed(2)}%
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Volume spike detected</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {c.nw
+                    ? `NW ${c.nw} arrow + volume spike`
+                    : "Volume spike detected"}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
+                  {c.nw && (
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                        c.nw === "BUY"
+                          ? "bg-emerald-500/15 text-emerald-400"
+                          : "bg-red-500/15 text-red-400"
+                      }`}
+                    >
+                      NW {c.nw === "BUY" ? "🟢" : "🔴"}
+                    </span>
+                  )}
                   <Badge label="RVOL" value={`${c.rvol.toFixed(1)}x`} good={c.rvol >= 1.5} />
                   <Badge label="OI" value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`} good={c.oi >= 0} />
                   <Badge label="RSI" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
@@ -546,10 +604,25 @@ function Dashboard() {
                       : "bg-red-500/15 text-red-400"
                   }`}
                 >
-                  {a.dir === "up" ? "Upside Breakout 🟢" : "Downside Breakout 🔴"}
+                  {a.kind === "nw"
+                    ? a.dir === "up"
+                      ? "NW BUY Arrow 🟢"
+                      : "NW SELL Arrow 🔴"
+                    : a.dir === "up"
+                      ? "Upside Breakout 🟢"
+                      : "Downside Breakout 🔴"}
                 </span>
-                <Badge label="RVOL" value={`${a.rvol.toFixed(1)}x`} good={a.rvol >= 1.5} />
-                <Badge label="OI" value={`${a.oi >= 0 ? "+" : ""}${a.oi.toFixed(1)}%`} good={a.oi >= 0} />
+                {a.kind === "nw" && (
+                  <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                    Nadaraya-Watson 15m
+                  </span>
+                )}
+                {a.rvol > 0 && (
+                  <Badge label="RVOL" value={`${a.rvol.toFixed(1)}x`} good={a.rvol >= 1.5} />
+                )}
+                {a.rvol > 0 && (
+                  <Badge label="OI" value={`${a.oi >= 0 ? "+" : ""}${a.oi.toFixed(1)}%`} good={a.oi >= 0} />
+                )}
                 <span className="ml-auto text-xs text-slate-500">Updated at {a.time}</span>
               </div>
             ))}
