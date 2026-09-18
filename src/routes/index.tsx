@@ -239,25 +239,63 @@ function Dashboard() {
   }, []);
 
   const send = useCallback(
-    (text?: string, tamil = false) => {
+    (text?: string, speak = false) => {
       const msg = (text ?? input).trim();
       if (!msg) return;
       setInput("");
-      if (tamil && isStopCommand(msg)) {
+      if (isStopCommand(msg)) {
         continuousRef.current = false;
         setContinuous(false);
+        setMessages((m) => [
+          ...m,
+          { role: "user", text: msg, time: istTime() },
+          { role: "jarvis", text: TAMIL_STOP, time: istTime() },
+        ]);
+        if (speak) speakTamil(TAMIL_STOP);
+        return;
       }
       setMessages((m) => [...m, { role: "user", text: msg, time: istTime() }]);
-      setTimeout(() => {
-        const reply = tamil
-          ? tamilReplyFor(msg, TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!)
-          : JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length]!;
+      setThinking(true);
+      void (async () => {
+        let reply: string;
+        try {
+          const res = await askVamsi({
+            data: {
+              question: msg,
+              snapshot: {
+                coins: coinsRef.current.map((c) => ({
+                  symbol: c.symbol,
+                  price: c.price,
+                  change: c.change,
+                  rvol: c.rvol,
+                  oi: c.oi,
+                  rsi: c.rsi,
+                })),
+                signals: nwRef.current.map((s) => ({
+                  symbol: s.symbol,
+                  signal: s.signal,
+                  price: s.price,
+                  timeframe: s.timeframe,
+                })),
+                portfolioValue: coinsRef.current.reduce(
+                  (s, c) => s + c.price * c.holdings,
+                  0
+                ),
+              },
+            },
+          });
+          reply = res.reply;
+        } catch {
+          reply = "ஏங்க, இப்போ மார்க்கெட் அனாலிசிஸ் கனெக்ஷன்ல சிக்கல். மறுபடி ஒரு தடவை கேளுங்க.";
+        }
+        setThinking(false);
         setMessages((m) => [...m, { role: "jarvis", text: reply, time: istTime() }]);
-        if (tamil) speakTamil(reply);
-      }, 700);
+        if (speak) speakTamil(reply);
+      })();
     },
     [input, speakTamil]
   );
+
 
   const startListening = useCallback(() => {
     if (listening) return;
