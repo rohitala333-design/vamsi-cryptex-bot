@@ -506,8 +506,23 @@ function Dashboard() {
                     {c.change.toFixed(2)}%
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Volume spike detected</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {c.nw
+                    ? `NW ${c.nw} arrow + volume spike`
+                    : "Volume spike detected"}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
+                  {c.nw && (
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                        c.nw === "BUY"
+                          ? "bg-emerald-500/15 text-emerald-400"
+                          : "bg-red-500/15 text-red-400"
+                      }`}
+                    >
+                      NW {c.nw === "BUY" ? "🟢" : "🔴"}
+                    </span>
+                  )}
                   <Badge label="RVOL" value={`${c.rvol.toFixed(1)}x`} good={c.rvol >= 1.5} />
                   <Badge label="OI" value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`} good={c.oi >= 0} />
                   <Badge label="RSI" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
