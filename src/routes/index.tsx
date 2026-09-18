@@ -464,10 +464,12 @@ function Dashboard() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">Volume spike detected</p>
-                <div className="mt-2 flex gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   <Badge label="RVOL" value={`${c.rvol.toFixed(1)}x`} good={c.rvol >= 1.5} />
                   <Badge label="OI" value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`} good={c.oi >= 0} />
+                  <Badge label="RSI" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
                 </div>
+
               </div>
             ))}
           </div>
