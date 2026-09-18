@@ -604,10 +604,25 @@ function Dashboard() {
                       : "bg-red-500/15 text-red-400"
                   }`}
                 >
-                  {a.dir === "up" ? "Upside Breakout 🟢" : "Downside Breakout 🔴"}
+                  {a.kind === "nw"
+                    ? a.dir === "up"
+                      ? "NW BUY Arrow 🟢"
+                      : "NW SELL Arrow 🔴"
+                    : a.dir === "up"
+                      ? "Upside Breakout 🟢"
+                      : "Downside Breakout 🔴"}
                 </span>
-                <Badge label="RVOL" value={`${a.rvol.toFixed(1)}x`} good={a.rvol >= 1.5} />
-                <Badge label="OI" value={`${a.oi >= 0 ? "+" : ""}${a.oi.toFixed(1)}%`} good={a.oi >= 0} />
+                {a.kind === "nw" && (
+                  <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                    Nadaraya-Watson 15m
+                  </span>
+                )}
+                {a.rvol > 0 && (
+                  <Badge label="RVOL" value={`${a.rvol.toFixed(1)}x`} good={a.rvol >= 1.5} />
+                )}
+                {a.rvol > 0 && (
+                  <Badge label="OI" value={`${a.oi >= 0 ? "+" : ""}${a.oi.toFixed(1)}%`} good={a.oi >= 0} />
+                )}
                 <span className="ml-auto text-xs text-slate-500">Updated at {a.time}</span>
               </div>
             ))}
