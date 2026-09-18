@@ -36,38 +36,14 @@ type Coin = {
   spark: number[];
   rvol: number;
   oi: number;
+  rsi: number;
 };
-
-const INITIAL_COINS: Coin[] = [
-  { symbol: "BTC", name: "Bitcoin", price: 67241.5, change: 2.34, color: "#f7931a", holdings: 0.4821, spark: [64, 65, 63, 66, 68, 67, 69, 71, 70, 72], rvol: 2.4, oi: 6.8 },
-  { symbol: "ETH", name: "Ethereum", price: 3512.8, change: 1.87, color: "#627eea", holdings: 4.25, spark: [52, 54, 53, 55, 57, 56, 58, 60, 59, 61], rvol: 1.9, oi: 4.1 },
-  { symbol: "SOL", name: "Solana", price: 182.44, change: 5.62, color: "#14f195", holdings: 22.5, spark: [30, 32, 31, 34, 33, 36, 38, 37, 40, 42], rvol: 3.6, oi: 12.4 },
-  { symbol: "BNB", name: "BNB Chain", price: 598.12, change: -0.84, color: "#f3ba2f", holdings: 3.1, spark: [44, 43, 45, 44, 42, 43, 41, 42, 40, 41], rvol: 1.2, oi: -2.3 },
-  { symbol: "XRP", name: "Ripple", price: 0.6241, change: -1.23, color: "#25a4e8", holdings: 1240, spark: [22, 23, 21, 22, 20, 21, 19, 20, 18, 19], rvol: 1.6, oi: -5.7 },
-  { symbol: "DOGE", name: "Dogecoin", price: 0.1582, change: 3.41, color: "#c2a633", holdings: 5200, spark: [12, 13, 14, 13, 15, 16, 15, 17, 18, 19], rvol: 2.8, oi: 9.2 },
-];
 
 type ChatMessage = { role: "user" | "jarvis"; text: string; time: string };
 type Alert = { id: number; symbol: string; dir: "up" | "down"; rvol: number; oi: number; time: string };
 
-const JARVIS_REPLIES = [
-  "Scanning markets… BTC momentum is strong. Consider holding your position, boss.",
-  "Portfolio health looks solid — 68% of holdings are in profit today.",
-  "Solana volatility is elevated. I'd set alerts rather than chase entries.",
-  "Gas fees are low right now. Good window if you plan to move ETH.",
-  "Market sentiment: cautiously bullish. Fear & Greed index sits at 64.",
-];
-
-const TAMIL_REPLIES = [
-  "ஏங்க, மார்க்கெட் இப்போ நல்லா மேல போகுது. BTC மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.",
-  "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல தான் இருக்கு. கவலைப்படாதீங்க.",
-  "ஏங்க, சொலானா ரொம்ப வோலட்டைல். அவசரப்பட்டு வாங்காதீங்க.",
-  "ஏங்க, வால்யூம் ஸ்பைக் தெரியுது. பிரேக்அவுட் வர வாய்ப்பு இருக்கு.",
-  "ஏங்க, மார்க்கெட் சென்டிமெண்ட் பாசிட்டிவ். ஸ்டாப் லாஸ் மட்டும் வெச்சுக்கோங்க.",
-];
-
 const TAMIL_GREETING =
-  "வணக்கம்! நான் உங்கள் வம்சி ஜார்விஸ். உங்களுக்கு என்ன உதவி வேண்டும்?";
+  "வணக்கம்! நான் உங்கள் வம்சி. லைவ் மார்க்கெட் ஸ்கேன் பண்ணிட்டு இருக்கேன் — என்ன கேக்கணும்?";
 const TAMIL_STOP = "சரிங்க ஏங்க, நான் நிறுத்துறேன். பிறகு சந்திப்போம்!";
 
 function isStopCommand(text: string) {
@@ -75,22 +51,6 @@ function isStopCommand(text: string) {
   return t.includes("நிறுத்து") || t.includes("stop") || t.includes("exit");
 }
 
-/** Keyword routing, same idea as the Python assistant's if/elif chain. */
-function tamilReplyFor(text: string, fallback: string) {
-  const t = text.toLowerCase();
-  if (isStopCommand(t)) return TAMIL_STOP;
-  if (t.includes("வணக்கம்") || t.includes("hello") || t.includes("hi"))
-    return "வணக்கம் ஏங்க! இன்று உங்களுக்கு நான் எப்படி உதவட்டும்?";
-  if (t.includes("யார் நீ") || t.includes("உன் பெயர்") || t.includes("who are you"))
-    return "ஏங்க, நான் உங்கள் வம்சி ஜார்விஸ் அசிஸ்டெண்ட்.";
-  if (t.includes("போர்ட்ஃபோலியோ") || t.includes("portfolio"))
-    return "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல இருக்கு. பெரிய கவலை இல்ல.";
-  if (t.includes("பிரேக்அவுட்") || t.includes("breakout"))
-    return "ஏங்க, RVOL ஸ்பைக் ஆன கோயின்கள்ல பிரேக்அவுட் வர வாய்ப்பு இருக்கு. அலெர்ட் வெச்சுக்கோங்க.";
-  if (t.includes("விலை") || t.includes("price") || t.includes("பிட்காயின்") || t.includes("btc"))
-    return "ஏங்க, பிட்காயின் இப்போ மேல்நோக்கி நகருது. மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.";
-  return fallback;
-}
 
 function istTime(d = new Date()) {
   return (
