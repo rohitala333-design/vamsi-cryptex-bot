@@ -95,28 +95,32 @@ function Badge({ label, value, good }: { label: string; value: string; good: boo
 const COLORS = ["#f7931a", "#627eea", "#14f195", "#f3ba2f", "#25a4e8", "#c2a633", "#8b5cf6", "#ec4899", "#22d3ee", "#f97316", "#84cc16", "#e11d48"];
 
 function Dashboard() {
-  const [coins, setCoins] = useState(INITIAL_COINS);
+  const [coins, setCoins] = useState<Coin[]>([]);
   const [scanned, setScanned] = useState(0);
   const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
   const [nwTime, setNwTime] = useState("");
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [heard, setHeard] = useState("");
   const [clock, setClock] = useState(istTime());
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "jarvis", text: "Good to see you, boss. Markets are live — how can I help?", time: istTime() },
+    { role: "jarvis", text: TAMIL_GREETING, time: istTime() },
   ]);
   const [input, setInput] = useState("");
   const [continuous, setContinuous] = useState(false);
   const continuousRef = useRef(false);
-  const replyIdx = useRef(0);
-  const tamilIdx = useRef(0);
   const alertId = useRef(1);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
   const sparks = useRef<Record<string, number[]>>({});
   const seenAlert = useRef<Record<string, number>>({});
+  const coinsRef = useRef<Coin[]>([]);
+  const nwRef = useRef<NadarayaSignal[]>([]);
+  coinsRef.current = coins;
+  nwRef.current = nwSignals;
+
 
   // Nadaraya-Watson 15m envelope scanner
   useEffect(() => {
