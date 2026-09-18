@@ -578,9 +578,7 @@ function Dashboard() {
                     </div>
                     <div>
                       <p className="font-semibold">{c.symbol}</p>
-                      <p className="text-xs text-slate-400">
-                        {c.name} • {fmt(c.holdings, c.holdings > 100 ? 0 : 4)} held
-                      </p>
+                      <p className="text-xs text-slate-400">{c.name}</p>
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         <span
                           className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -595,7 +593,9 @@ function Dashboard() {
                           value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`}
                           good={c.oi >= 0}
                         />
+                        <Badge label="RSI14" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
                       </div>
+
                     </div>
                   </div>
                   <div className="hidden sm:block">
