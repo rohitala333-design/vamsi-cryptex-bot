@@ -42,7 +42,15 @@ type Coin = {
 };
 
 type ChatMessage = { role: "user" | "jarvis"; text: string; time: string };
-type Alert = { id: number; symbol: string; dir: "up" | "down"; rvol: number; oi: number; time: string };
+type Alert = {
+  id: number;
+  symbol: string;
+  dir: "up" | "down";
+  rvol: number;
+  oi: number;
+  time: string;
+  kind: "price" | "nw";
+};
 
 const TAMIL_GREETING =
   "வணக்கம்! நான் உங்கள் வம்சி. லைவ் மார்க்கெட் ஸ்கேன் பண்ணிட்டு இருக்கேன் — என்ன கேக்கணும்?";
@@ -133,6 +141,30 @@ function Dashboard() {
         if (stopped) return;
         setNwSignals(res.signals);
         setNwTime(istTime());
+
+        // Feed fresh NW arrows into the live breakout alerts feed
+        const fresh = res.signals.filter(
+          (s) => !seenAlert.current[`nw-${s.symbol}-${s.candleTime}`]
+        );
+        if (fresh.length) {
+          for (const s of fresh) seenAlert.current[`nw-${s.symbol}-${s.candleTime}`] = Date.now();
+          setAlerts((prev) => {
+            const mapped = fresh.map((s) => {
+              const base = s.symbol.replace("/USDT", "");
+              const coin = coinsRef.current.find((c) => c.symbol === base);
+              return {
+                id: alertId.current++,
+                symbol: s.symbol,
+                dir: (s.signal === "BUY" ? "up" : "down") as "up" | "down",
+                rvol: coin?.rvol ?? 0,
+                oi: coin?.oi ?? 0,
+                time: istTime(),
+                kind: "nw" as const,
+              };
+            });
+            return [...mapped, ...prev].slice(0, 8);
+          });
+        }
       } catch {
         /* transient network errors are ignored */
       }
