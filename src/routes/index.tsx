@@ -627,7 +627,10 @@ function Dashboard() {
             {heard || (listening ? "Listening…" : "Hold the mic button and speak.")}
           </p>
           <p className="mt-3 text-xs uppercase tracking-wider text-slate-500">Vamsi replies (Tamil)</p>
-          <p className="mt-1 text-sm text-blue-200">{lastJarvis?.text}</p>
+          <p className="mt-1 text-sm text-blue-200">
+            {thinking ? "வம்சி லைவ் டேட்டா அனாலிஸ் பண்ணிட்டு இருக்கு…" : lastJarvis?.text}
+          </p>
+
           <p className="mt-1 text-xs text-slate-500">Updated at {lastJarvis?.time}</p>
         </section>
 
