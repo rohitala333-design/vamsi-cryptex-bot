@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTopFutures } from "@/lib/market.functions";
 import { getNadarayaSignals, type NadarayaSignal } from "@/lib/nadaraya.functions";
+import { askVamsi } from "@/lib/vamsi.functions";
+
 
 
 export const Route = createFileRoute("/")({
@@ -36,38 +38,14 @@ type Coin = {
   spark: number[];
   rvol: number;
   oi: number;
+  rsi: number;
 };
-
-const INITIAL_COINS: Coin[] = [
-  { symbol: "BTC", name: "Bitcoin", price: 67241.5, change: 2.34, color: "#f7931a", holdings: 0.4821, spark: [64, 65, 63, 66, 68, 67, 69, 71, 70, 72], rvol: 2.4, oi: 6.8 },
-  { symbol: "ETH", name: "Ethereum", price: 3512.8, change: 1.87, color: "#627eea", holdings: 4.25, spark: [52, 54, 53, 55, 57, 56, 58, 60, 59, 61], rvol: 1.9, oi: 4.1 },
-  { symbol: "SOL", name: "Solana", price: 182.44, change: 5.62, color: "#14f195", holdings: 22.5, spark: [30, 32, 31, 34, 33, 36, 38, 37, 40, 42], rvol: 3.6, oi: 12.4 },
-  { symbol: "BNB", name: "BNB Chain", price: 598.12, change: -0.84, color: "#f3ba2f", holdings: 3.1, spark: [44, 43, 45, 44, 42, 43, 41, 42, 40, 41], rvol: 1.2, oi: -2.3 },
-  { symbol: "XRP", name: "Ripple", price: 0.6241, change: -1.23, color: "#25a4e8", holdings: 1240, spark: [22, 23, 21, 22, 20, 21, 19, 20, 18, 19], rvol: 1.6, oi: -5.7 },
-  { symbol: "DOGE", name: "Dogecoin", price: 0.1582, change: 3.41, color: "#c2a633", holdings: 5200, spark: [12, 13, 14, 13, 15, 16, 15, 17, 18, 19], rvol: 2.8, oi: 9.2 },
-];
 
 type ChatMessage = { role: "user" | "jarvis"; text: string; time: string };
 type Alert = { id: number; symbol: string; dir: "up" | "down"; rvol: number; oi: number; time: string };
 
-const JARVIS_REPLIES = [
-  "Scanning markets… BTC momentum is strong. Consider holding your position, boss.",
-  "Portfolio health looks solid — 68% of holdings are in profit today.",
-  "Solana volatility is elevated. I'd set alerts rather than chase entries.",
-  "Gas fees are low right now. Good window if you plan to move ETH.",
-  "Market sentiment: cautiously bullish. Fear & Greed index sits at 64.",
-];
-
-const TAMIL_REPLIES = [
-  "ஏங்க, மார்க்கெட் இப்போ நல்லா மேல போகுது. BTC மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.",
-  "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல தான் இருக்கு. கவலைப்படாதீங்க.",
-  "ஏங்க, சொலானா ரொம்ப வோலட்டைல். அவசரப்பட்டு வாங்காதீங்க.",
-  "ஏங்க, வால்யூம் ஸ்பைக் தெரியுது. பிரேக்அவுட் வர வாய்ப்பு இருக்கு.",
-  "ஏங்க, மார்க்கெட் சென்டிமெண்ட் பாசிட்டிவ். ஸ்டாப் லாஸ் மட்டும் வெச்சுக்கோங்க.",
-];
-
 const TAMIL_GREETING =
-  "வணக்கம்! நான் உங்கள் வம்சி ஜார்விஸ். உங்களுக்கு என்ன உதவி வேண்டும்?";
+  "வணக்கம்! நான் உங்கள் வம்சி. லைவ் மார்க்கெட் ஸ்கேன் பண்ணிட்டு இருக்கேன் — என்ன கேக்கணும்?";
 const TAMIL_STOP = "சரிங்க ஏங்க, நான் நிறுத்துறேன். பிறகு சந்திப்போம்!";
 
 function isStopCommand(text: string) {
@@ -75,22 +53,6 @@ function isStopCommand(text: string) {
   return t.includes("நிறுத்து") || t.includes("stop") || t.includes("exit");
 }
 
-/** Keyword routing, same idea as the Python assistant's if/elif chain. */
-function tamilReplyFor(text: string, fallback: string) {
-  const t = text.toLowerCase();
-  if (isStopCommand(t)) return TAMIL_STOP;
-  if (t.includes("வணக்கம்") || t.includes("hello") || t.includes("hi"))
-    return "வணக்கம் ஏங்க! இன்று உங்களுக்கு நான் எப்படி உதவட்டும்?";
-  if (t.includes("யார் நீ") || t.includes("உன் பெயர்") || t.includes("who are you"))
-    return "ஏங்க, நான் உங்கள் வம்சி ஜார்விஸ் அசிஸ்டெண்ட்.";
-  if (t.includes("போர்ட்ஃபோலியோ") || t.includes("portfolio"))
-    return "ஏங்க, உங்க போர்ட்ஃபோலியோ இன்னைக்கு லாபத்துல இருக்கு. பெரிய கவலை இல்ல.";
-  if (t.includes("பிரேக்அவுட்") || t.includes("breakout"))
-    return "ஏங்க, RVOL ஸ்பைக் ஆன கோயின்கள்ல பிரேக்அவுட் வர வாய்ப்பு இருக்கு. அலெர்ட் வெச்சுக்கோங்க.";
-  if (t.includes("விலை") || t.includes("price") || t.includes("பிட்காயின்") || t.includes("btc"))
-    return "ஏங்க, பிட்காயின் இப்போ மேல்நோக்கி நகருது. மொமெண்டம் ஸ்ட்ராங்கா இருக்கு.";
-  return fallback;
-}
 
 function istTime(d = new Date()) {
   return (
@@ -135,28 +97,32 @@ function Badge({ label, value, good }: { label: string; value: string; good: boo
 const COLORS = ["#f7931a", "#627eea", "#14f195", "#f3ba2f", "#25a4e8", "#c2a633", "#8b5cf6", "#ec4899", "#22d3ee", "#f97316", "#84cc16", "#e11d48"];
 
 function Dashboard() {
-  const [coins, setCoins] = useState(INITIAL_COINS);
+  const [coins, setCoins] = useState<Coin[]>([]);
   const [scanned, setScanned] = useState(0);
   const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
   const [nwTime, setNwTime] = useState("");
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [heard, setHeard] = useState("");
   const [clock, setClock] = useState(istTime());
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "jarvis", text: "Good to see you, boss. Markets are live — how can I help?", time: istTime() },
+    { role: "jarvis", text: TAMIL_GREETING, time: istTime() },
   ]);
   const [input, setInput] = useState("");
   const [continuous, setContinuous] = useState(false);
   const continuousRef = useRef(false);
-  const replyIdx = useRef(0);
-  const tamilIdx = useRef(0);
   const alertId = useRef(1);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
   const sparks = useRef<Record<string, number[]>>({});
   const seenAlert = useRef<Record<string, number>>({});
+  const coinsRef = useRef<Coin[]>([]);
+  const nwRef = useRef<NadarayaSignal[]>([]);
+  coinsRef.current = coins;
+  nwRef.current = nwSignals;
+
 
   // Nadaraya-Watson 15m envelope scanner
   useEffect(() => {
@@ -182,8 +148,6 @@ function Dashboard() {
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
     let stopped = false;
-    const holdings: Record<string, number> = {};
-    INITIAL_COINS.forEach((c) => (holdings[c.symbol] = c.holdings));
 
     const load = async () => {
       try {
@@ -203,13 +167,15 @@ function Dashboard() {
             price: c.price,
             change: c.change,
             color: COLORS[i % COLORS.length]!,
-            holdings: holdings[c.base] ?? 0,
+            holdings: 0,
             spark: next.length > 1 ? next : [c.price, c.price],
             rvol: c.rvol,
             oi: c.oi,
+            rsi: c.rsi,
           };
         });
         setCoins(live);
+
 
         // Breakout alerts from live price action (>= 4% move in top volume perps)
         const hits = res.coins
@@ -275,25 +241,63 @@ function Dashboard() {
   }, []);
 
   const send = useCallback(
-    (text?: string, tamil = false) => {
+    (text?: string, speak = false) => {
       const msg = (text ?? input).trim();
       if (!msg) return;
       setInput("");
-      if (tamil && isStopCommand(msg)) {
+      if (isStopCommand(msg)) {
         continuousRef.current = false;
         setContinuous(false);
+        setMessages((m) => [
+          ...m,
+          { role: "user", text: msg, time: istTime() },
+          { role: "jarvis", text: TAMIL_STOP, time: istTime() },
+        ]);
+        if (speak) speakTamil(TAMIL_STOP);
+        return;
       }
       setMessages((m) => [...m, { role: "user", text: msg, time: istTime() }]);
-      setTimeout(() => {
-        const reply = tamil
-          ? tamilReplyFor(msg, TAMIL_REPLIES[tamilIdx.current++ % TAMIL_REPLIES.length]!)
-          : JARVIS_REPLIES[replyIdx.current++ % JARVIS_REPLIES.length]!;
+      setThinking(true);
+      void (async () => {
+        let reply: string;
+        try {
+          const res = await askVamsi({
+            data: {
+              question: msg,
+              snapshot: {
+                coins: coinsRef.current.map((c) => ({
+                  symbol: c.symbol,
+                  price: c.price,
+                  change: c.change,
+                  rvol: c.rvol,
+                  oi: c.oi,
+                  rsi: c.rsi,
+                })),
+                signals: nwRef.current.map((s) => ({
+                  symbol: s.symbol,
+                  signal: s.signal,
+                  price: s.price,
+                  timeframe: s.timeframe,
+                })),
+                portfolioValue: coinsRef.current.reduce(
+                  (s, c) => s + c.price * c.holdings,
+                  0
+                ),
+              },
+            },
+          });
+          reply = res.reply;
+        } catch {
+          reply = "ஏங்க, இப்போ மார்க்கெட் அனாலிசிஸ் கனெக்ஷன்ல சிக்கல். மறுபடி ஒரு தடவை கேளுங்க.";
+        }
+        setThinking(false);
         setMessages((m) => [...m, { role: "jarvis", text: reply, time: istTime() }]);
-        if (tamil) speakTamil(reply);
-      }, 700);
+        if (speak) speakTamil(reply);
+      })();
     },
     [input, speakTamil]
   );
+
 
   const startListening = useCallback(() => {
     if (listening) return;
@@ -420,16 +424,26 @@ function Dashboard() {
           <p className="text-sm text-slate-400">Total Portfolio Value</p>
           <div className="mt-1 flex flex-wrap items-end gap-3">
             <span className="text-4xl font-bold tracking-tight">${fmt(portfolio)}</span>
-            <span
-              className={`mb-1 rounded-full px-2.5 py-1 text-sm font-semibold ${
-                dayChange >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"
-              }`}
-            >
-              {dayChange >= 0 ? "▲" : "▼"} ${fmt(Math.abs(dayChange))} today
-            </span>
+            {portfolio > 0 && (
+              <span
+                className={`mb-1 rounded-full px-2.5 py-1 text-sm font-semibold ${
+                  dayChange >= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-red-500/15 text-red-400"
+                }`}
+              >
+                {dayChange >= 0 ? "▲" : "▼"} ${fmt(Math.abs(dayChange))} today
+              </span>
+            )}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Updated at {clock}</p>
+          <p className="mt-2 text-sm text-amber-300">
+            {portfolio > 0
+              ? "Live positions tracked."
+              : "No exchange account connected — no active trades are open."}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Updated at {clock}</p>
         </section>
+
 
         {/* Momentum coins */}
         <section className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
@@ -450,10 +464,12 @@ function Dashboard() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">Volume spike detected</p>
-                <div className="mt-2 flex gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   <Badge label="RVOL" value={`${c.rvol.toFixed(1)}x`} good={c.rvol >= 1.5} />
                   <Badge label="OI" value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`} good={c.oi >= 0} />
+                  <Badge label="RSI" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
                 </div>
+
               </div>
             ))}
           </div>
@@ -562,9 +578,7 @@ function Dashboard() {
                     </div>
                     <div>
                       <p className="font-semibold">{c.symbol}</p>
-                      <p className="text-xs text-slate-400">
-                        {c.name} • {fmt(c.holdings, c.holdings > 100 ? 0 : 4)} held
-                      </p>
+                      <p className="text-xs text-slate-400">{c.name}</p>
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         <span
                           className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -579,7 +593,9 @@ function Dashboard() {
                           value={`${c.oi >= 0 ? "+" : ""}${c.oi.toFixed(1)}%`}
                           good={c.oi >= 0}
                         />
+                        <Badge label="RSI14" value={c.rsi.toFixed(0)} good={c.rsi >= 50} />
                       </div>
+
                     </div>
                   </div>
                   <div className="hidden sm:block">
@@ -611,7 +627,10 @@ function Dashboard() {
             {heard || (listening ? "Listening…" : "Hold the mic button and speak.")}
           </p>
           <p className="mt-3 text-xs uppercase tracking-wider text-slate-500">Vamsi replies (Tamil)</p>
-          <p className="mt-1 text-sm text-blue-200">{lastJarvis?.text}</p>
+          <p className="mt-1 text-sm text-blue-200">
+            {thinking ? "வம்சி லைவ் டேட்டா அனாலிஸ் பண்ணிட்டு இருக்கு…" : lastJarvis?.text}
+          </p>
+
           <p className="mt-1 text-xs text-slate-500">Updated at {lastJarvis?.time}</p>
         </section>
 

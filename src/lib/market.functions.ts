@@ -53,7 +53,9 @@ async function relativeVolume(symbol: string): Promise<number | null> {
     return Number((current / avg).toFixed(2));
   } catch {
     return null;
+  }
 }
+
 
 /** Real RSI(14) from the last completed 15m candles. */
 async function rsi14(symbol: string): Promise<number | null> {
