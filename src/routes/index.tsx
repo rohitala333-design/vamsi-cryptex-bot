@@ -227,6 +227,7 @@ function Dashboard() {
                   rvol: h.rvol,
                   oi: h.oi,
                   time: istTime(),
+                  kind: "price" as const,
                 };
               });
             return fresh.length ? [...fresh, ...prev].slice(0, 6) : prev;
@@ -257,10 +258,20 @@ function Dashboard() {
     () => coins.reduce((s, c) => s + c.price * c.holdings * (c.change / 100), 0),
     [coins]
   );
-  const momentum = useMemo(
-    () => [...coins].sort((a, b) => b.rvol - a.rvol).slice(0, 3),
-    [coins]
-  );
+  // Momentum ranking: volume spike score boosted by fresh Nadaraya-Watson arrows
+  const momentum = useMemo(() => {
+    const nwMap = new Map(
+      nwSignals.map((s) => [s.symbol.replace("/USDT", ""), s.signal] as const)
+    );
+    return [...coins]
+      .map((c) => ({ ...c, nw: nwMap.get(c.symbol) as "BUY" | "SELL" | undefined }))
+      .sort(
+        (a, b) =>
+          b.rvol + (b.nw ? 2 : 0) + Math.max(b.change, 0) / 10 -
+          (a.rvol + (a.nw ? 2 : 0) + Math.max(a.change, 0) / 10)
+      )
+      .slice(0, 3);
+  }, [coins, nwSignals]);
 
   const speakTamil = useCallback((text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
