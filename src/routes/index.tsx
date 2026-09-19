@@ -122,6 +122,7 @@ function Dashboard() {
   const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
   const [nwTime, setNwTime] = useState("");
   const [nwScanning, setNwScanning] = useState(false);
+  const [nwError, setNwError] = useState(false);
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -150,9 +151,11 @@ function Dashboard() {
   const runNwScan = useCallback(async () => {
     if (nwScanning) return;
     setNwScanning(true);
+    setNwError(false);
     try {
       const res = await getNadarayaSignals();
       if (stoppedRef.current) return;
+      setNwError(false);
         setNwSignals(res.signals);
         setNwTime(istTime());
 
@@ -182,7 +185,7 @@ function Dashboard() {
           });
         }
     } catch {
-      /* transient network errors are ignored */
+      if (!stoppedRef.current) setNwError(true);
     } finally {
       if (!stoppedRef.current) setNwScanning(false);
     }
@@ -573,12 +576,17 @@ function Dashboard() {
               ✨ Nadaraya-Watson Envelope · 5m / 15m / 1h
             </h2>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500">
+              <span
+                id="status-text"
+                className={`text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
+              >
                 {nwScanning
-                  ? "Scanning Data…"
-                  : nwTime
-                    ? `Updated at ${nwTime}`
-                    : "Scanning…"}
+                  ? "Scanning 200 Pairs... Please wait"
+                  : nwError
+                    ? "Live Feed Unreachable - Try Again"
+                    : nwTime
+                      ? `Scan Completed! Updated at ${nwTime}`
+                      : "Scanning Data…"}
               </span>
               <button
                 id="refresh-btn"
