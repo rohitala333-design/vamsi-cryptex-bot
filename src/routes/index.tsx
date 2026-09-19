@@ -572,9 +572,23 @@ function Dashboard() {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
               ✨ Nadaraya-Watson Envelope · 5m / 15m / 1h
             </h2>
-            <span className="text-xs text-slate-500">
-              {nwTime ? `Updated at ${nwTime}` : "Scanning…"}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500">
+                {nwScanning
+                  ? "Scanning Data…"
+                  : nwTime
+                    ? `Updated at ${nwTime}`
+                    : "Scanning…"}
+              </span>
+              <button
+                id="refresh-btn"
+                onClick={() => runNwScan()}
+                disabled={nwScanning}
+                className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {nwScanning ? "⏳ Scanning…" : "🔄 Refresh Nadaraya Scan"}
+              </button>
+            </div>
           </div>
           <div className="divide-y divide-slate-800">
             {nwSignals.length === 0 && (
