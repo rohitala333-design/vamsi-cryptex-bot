@@ -181,16 +181,22 @@ function Dashboard() {
             return [...mapped, ...prev].slice(0, 8);
           });
         }
-      } catch {
-        /* transient network errors are ignored */
-      }
-    };
-    run();
-    const id = setInterval(run, 60000);
+    } catch {
+      /* transient network errors are ignored */
+    } finally {
+      if (!stoppedRef.current) setNwScanning(false);
+    }
+  }, [nwScanning]);
+
+  useEffect(() => {
+    stoppedRef.current = false;
+    runNwScan();
+    const id = setInterval(runNwScan, 60000);
     return () => {
-      stopped = true;
+      stoppedRef.current = true;
       clearInterval(id);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
