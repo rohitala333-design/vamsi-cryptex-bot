@@ -1,87 +1,134 @@
 import { createServerFn } from "@tanstack/react-start";
 
+export type ArrowSignal = "UP_ARROW" | "DOWN_ARROW" | "NONE";
+
 export type NadarayaSignal = {
   symbol: string; // BTC/USDT
-  signal: "BUY" | "SELL";
   price: number;
+  signal_5m: ArrowSignal;
+  signal_15m: ArrowSignal;
+  signal_1h: ArrowSignal;
   upper: number;
   lower: number;
   candleTime: number;
-  timeframe: string;
 };
 
-const TIMEFRAME = "15m";
 const BANDWIDTH = 8;
-const MULT = 3;
-const SCAN_COINS = 40;
+const MULT = 3.0;
+const SCAN_COINS = 200;
+const CONCURRENCY = 20;
+const TIMEFRAMES = ["5m", "15m", "1h"] as const;
 
-/** Rational quadratic kernel regression (Nadaraya-Watson envelope). */
-function nadarayaWatson(prices: number[], h = BANDWIDTH, mult = MULT) {
-  const n = prices.length;
+type Klines = {
+  closes: number[];
+  highs: number[];
+  lows: number[];
+  lastTime: number;
+};
+
+/** Nadaraya-Watson with Gaussian kernel + ATR-based envelope (h=8, mult=3). */
+function nadarayaWatson({ closes, highs, lows }: Klines): {
+  signal: ArrowSignal;
+  upper: number;
+  lower: number;
+} {
+  const n = closes.length;
   const yHat = new Array<number>(n).fill(0);
+
   for (let i = 0; i < n; i++) {
     let sumW = 0;
-    let sumWY = 0;
+    let sumWX = 0;
     for (let j = 0; j < n; j++) {
-      const d = (i - j) ** 2;
-      const w = 1 / (1 + d / (2 * h * h));
+      const d = i - j;
+      const w = Math.exp(-(d * d) / (2 * BANDWIDTH * BANDWIDTH));
       sumW += w;
-      sumWY += w * (prices[j] ?? 0);
+      sumWX += w * (closes[j] ?? 0);
     }
-    yHat[i] = sumW ? sumWY / sumW : (prices[i] ?? 0);
+    yHat[i] = sumW ? sumWX / sumW : (closes[i] ?? 0);
   }
-  const mae =
-    prices.reduce((s, p, i) => s + Math.abs(p - (yHat[i] ?? p)), 0) / (n || 1);
-  const upper = yHat.map((v) => v + mae * mult);
-  const lower = yHat.map((v) => v - mae * mult);
-  return { yHat, upper, lower };
+
+  // True range, rolling mean over window h, scaled by mult.
+  const tr = new Array<number>(n).fill(0);
+  for (let i = 1; i < n; i++) {
+    const h = highs[i] ?? 0;
+    const l = lows[i] ?? 0;
+    const pc = closes[i - 1] ?? 0;
+    tr[i] = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+  }
+  const mae = new Array<number>(n).fill(0);
+  for (let i = 0; i < n; i++) {
+    const from = Math.max(0, i - BANDWIDTH + 1);
+    let sum = 0;
+    for (let j = from; j <= i; j++) sum += tr[j] ?? 0;
+    mae[i] = (sum / (i - from + 1)) * MULT;
+  }
+
+  const upper = yHat.map((v, i) => v + (mae[i] ?? 0));
+  const lower = yHat.map((v, i) => v - (mae[i] ?? 0));
+
+  // Walk the series and keep the most recent arrow (crossing through a band).
+  let signal: ArrowSignal = "NONE";
+  for (let i = 1; i < n; i++) {
+    const prev = closes[i - 1] ?? 0;
+    const curr = closes[i] ?? 0;
+    if (prev <= (lower[i - 1] ?? 0) && curr > (lower[i] ?? 0)) signal = "UP_ARROW";
+    else if (prev >= (upper[i - 1] ?? 0) && curr < (upper[i] ?? 0))
+      signal = "DOWN_ARROW";
+  }
+
+  return { signal, upper: upper[n - 1] ?? 0, lower: lower[n - 1] ?? 0 };
 }
 
-async function scanCoin(symbol: string): Promise<NadarayaSignal | null> {
+async function fetchKlines(symbol: string, interval: string): Promise<Klines | null> {
   try {
     const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${TIMEFRAME}&limit=100`
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=100`
     );
     if (!res.ok) return null;
     const rows = (await res.json()) as unknown[][];
     if (rows.length < 50) return null;
-
-    const closes = rows.map((r) => Number(r[4]));
-    const highs = rows.map((r) => Number(r[2]));
-    const lows = rows.map((r) => Number(r[3]));
-    const { upper, lower } = nadarayaWatson(closes);
-
-    const i = closes.length - 1;
-    const p = i - 1;
-    const closeCurr = closes[i] ?? 0;
-    const closePrev = closes[p] ?? 0;
-    const lowPrev = lows[p] ?? 0;
-    const highPrev = highs[p] ?? 0;
-    const upPrev = upper[p] ?? 0;
-    const loPrev = lower[p] ?? 0;
-    const upCurr = upper[i] ?? 0;
-    const loCurr = lower[i] ?? 0;
-
-    const buy = lowPrev <= loPrev || (closePrev <= loPrev && closeCurr > loCurr);
-    const sell =
-      highPrev >= upPrev || (closePrev >= upPrev && closeCurr < upCurr);
-    if (!buy && !sell) return null;
-
     return {
-      symbol: symbol.replace(/USDT$/, "/USDT"),
-      signal: buy ? "BUY" : "SELL",
-      price: closeCurr,
-      upper: upCurr,
-      lower: loCurr,
-      candleTime: Number(rows[i]?.[0] ?? Date.now()),
-      timeframe: TIMEFRAME,
+      closes: rows.map((r) => Number(r[4])),
+      highs: rows.map((r) => Number(r[2])),
+      lows: rows.map((r) => Number(r[3])),
+      lastTime: Number(rows[rows.length - 1]?.[0] ?? Date.now()),
     };
   } catch {
     return null;
   }
 }
 
-/** Scans the most active Binance USDT perps for 15m Nadaraya-Watson buy/sell arrows. */
+async function scanCoin(symbol: string): Promise<NadarayaSignal | null> {
+  const [k5, k15, k1h] = await Promise.all(
+    TIMEFRAMES.map((tf) => fetchKlines(symbol, tf))
+  );
+  if (!k15) return null;
+
+  const s5 = k5 ? nadarayaWatson(k5) : null;
+  const s15 = nadarayaWatson(k15);
+  const s1h = k1h ? nadarayaWatson(k1h) : null;
+
+  const signal_5m: ArrowSignal = s5?.signal ?? "NONE";
+  const signal_15m: ArrowSignal = s15.signal;
+  const signal_1h: ArrowSignal = s1h?.signal ?? "NONE";
+
+  // Only keep coins with at least one timeframe firing an arrow.
+  if (signal_5m === "NONE" && signal_15m === "NONE" && signal_1h === "NONE")
+    return null;
+
+  return {
+    symbol: symbol.replace(/USDT$/, "/USDT"),
+    price: k15.closes[k15.closes.length - 1] ?? 0,
+    signal_5m,
+    signal_15m,
+    signal_1h,
+    upper: s15.upper,
+    lower: s15.lower,
+    candleTime: k15.lastTime,
+  };
+}
+
+/** Scans the top Binance USDT perps for Nadaraya-Watson arrows on 5m / 15m / 1h. */
 export const getNadarayaSignals = createServerFn({ method: "GET" }).handler(
   async () => {
     const res = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr");
@@ -95,9 +142,9 @@ export const getNadarayaSignals = createServerFn({ method: "GET" }).handler(
       .map((t) => t.symbol);
 
     const signals: NadarayaSignal[] = [];
-    for (let i = 0; i < symbols.length; i += 8) {
+    for (let i = 0; i < symbols.length; i += CONCURRENCY) {
       const batch = await Promise.all(
-        symbols.slice(i, i + 8).map((s) => scanCoin(s))
+        symbols.slice(i, i + CONCURRENCY).map((s) => scanCoin(s))
       );
       batch.forEach((s) => s && signals.push(s));
     }
