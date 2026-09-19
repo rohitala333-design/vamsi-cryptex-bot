@@ -185,7 +185,7 @@ function Dashboard() {
           });
         }
     } catch {
-      /* transient network errors are ignored */
+      if (!stoppedRef.current) setNwError(true);
     } finally {
       if (!stoppedRef.current) setNwScanning(false);
     }
@@ -576,12 +576,17 @@ function Dashboard() {
               ✨ Nadaraya-Watson Envelope · 5m / 15m / 1h
             </h2>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500">
+              <span
+                id="status-text"
+                className={`text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
+              >
                 {nwScanning
-                  ? "Scanning Data…"
-                  : nwTime
-                    ? `Updated at ${nwTime}`
-                    : "Scanning…"}
+                  ? "Scanning 200 Pairs... Please wait"
+                  : nwError
+                    ? "Live Feed Unreachable - Try Again"
+                    : nwTime
+                      ? `Scan Completed! Updated at ${nwTime}`
+                      : "Scanning Data…"}
               </span>
               <button
                 id="refresh-btn"
