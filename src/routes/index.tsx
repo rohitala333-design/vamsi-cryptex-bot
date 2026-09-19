@@ -122,6 +122,7 @@ function Dashboard() {
   const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
   const [nwTime, setNwTime] = useState("");
   const [nwScanning, setNwScanning] = useState(false);
+  const [nwError, setNwError] = useState(false);
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -150,9 +151,11 @@ function Dashboard() {
   const runNwScan = useCallback(async () => {
     if (nwScanning) return;
     setNwScanning(true);
+    setNwError(false);
     try {
       const res = await getNadarayaSignals();
       if (stoppedRef.current) return;
+      setNwError(false);
         setNwSignals(res.signals);
         setNwTime(istTime());
 
