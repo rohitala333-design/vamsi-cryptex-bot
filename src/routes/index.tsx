@@ -50,7 +50,19 @@ type Alert = {
   oi: number;
   time: string;
   kind: "price" | "nw";
+  tf?: string;
 };
+
+/** Firing timeframes of an NW signal, e.g. "5m·15m", and its main direction. */
+function nwSummary(s: NadarayaSignal): { tfs: string[]; dir: "up" | "down" } {
+  const tfs: string[] = [];
+  if (s.signal_5m !== "NONE") tfs.push("5m");
+  if (s.signal_15m !== "NONE") tfs.push("15m");
+  if (s.signal_1h !== "NONE") tfs.push("1h");
+  const primary =
+    s.signal_15m !== "NONE" ? s.signal_15m : s.signal_5m !== "NONE" ? s.signal_5m : s.signal_1h;
+  return { tfs, dir: primary === "UP_ARROW" ? "up" : "down" };
+}
 
 const TAMIL_GREETING =
   "வணக்கம்! நான் உங்கள் வம்சி. லைவ் மார்க்கெட் ஸ்கேன் பண்ணிட்டு இருக்கேன் — என்ன கேக்கணும்?";
@@ -152,14 +164,16 @@ function Dashboard() {
             const mapped = fresh.map((s) => {
               const base = s.symbol.replace("/USDT", "");
               const coin = coinsRef.current.find((c) => c.symbol === base);
+              const { tfs, dir } = nwSummary(s);
               return {
                 id: alertId.current++,
                 symbol: s.symbol,
-                dir: (s.signal === "BUY" ? "up" : "down") as "up" | "down",
+                dir,
                 rvol: coin?.rvol ?? 0,
                 oi: coin?.oi ?? 0,
                 time: istTime(),
                 kind: "nw" as const,
+                tf: tfs.join("·"),
               };
             });
             return [...mapped, ...prev].slice(0, 8);
@@ -261,7 +275,10 @@ function Dashboard() {
   // Momentum ranking: volume spike score boosted by fresh Nadaraya-Watson arrows
   const momentum = useMemo(() => {
     const nwMap = new Map(
-      nwSignals.map((s) => [s.symbol.replace("/USDT", ""), s.signal] as const)
+      nwSignals.map((s) => {
+        const { dir } = nwSummary(s);
+        return [s.symbol.replace("/USDT", ""), dir === "up" ? "BUY" : "SELL"] as const;
+      })
     );
     return [...coins]
       .map((c) => ({ ...c, nw: nwMap.get(c.symbol) as "BUY" | "SELL" | undefined }))
@@ -316,12 +333,20 @@ function Dashboard() {
                   oi: c.oi,
                   rsi: c.rsi,
                 })),
-                signals: nwRef.current.map((s) => ({
-                  symbol: s.symbol,
-                  signal: s.signal,
-                  price: s.price,
-                  timeframe: s.timeframe,
-                })),
+                signals: nwRef.current.flatMap((s) =>
+                  ([
+                    ["5m", s.signal_5m],
+                    ["15m", s.signal_15m],
+                    ["1h", s.signal_1h],
+                  ] as const)
+                    .filter(([, sig]) => sig !== "NONE")
+                    .map(([timeframe, sig]) => ({
+                      symbol: s.symbol,
+                      signal: sig === "UP_ARROW" ? "BUY" : "SELL",
+                      price: s.price,
+                      timeframe,
+                    }))
+                ),
                 portfolioValue: coinsRef.current.reduce(
                   (s, c) => s + c.price * c.holdings,
                   0
@@ -537,7 +562,7 @@ function Dashboard() {
         <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              ✨ Nadaraya-Watson Envelope · 15m
+              ✨ Nadaraya-Watson Envelope · 5m / 15m / 1h
             </h2>
             <span className="text-xs text-slate-500">
               {nwTime ? `Updated at ${nwTime}` : "Scanning…"}
@@ -546,7 +571,7 @@ function Dashboard() {
           <div className="divide-y divide-slate-800">
             {nwSignals.length === 0 && (
               <p className="px-4 py-4 text-sm text-slate-500">
-                No band touches on the last 15m candle — waiting for the next arrow.
+                No band crosses on 5m / 15m / 1h — waiting for the next arrow.
               </p>
             )}
             {nwSignals.map((s) => (
@@ -555,15 +580,26 @@ function Dashboard() {
                 className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
               >
                 <span className="font-semibold">{s.symbol}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    s.signal === "BUY"
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-red-500/15 text-red-400"
-                  }`}
-                >
-                  {s.signal === "BUY" ? "BUY 🟢 Green Arrow" : "SELL 🔴 Red Arrow"}
-                </span>
+                {(
+                  [
+                    ["5m", s.signal_5m],
+                    ["15m", s.signal_15m],
+                    ["1h", s.signal_1h],
+                  ] as const
+                ).map(([tf, sig]) => (
+                  <span
+                    key={tf}
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      sig === "UP_ARROW"
+                        ? "bg-emerald-500/15 text-emerald-400"
+                        : sig === "DOWN_ARROW"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-slate-800 text-slate-500"
+                    }`}
+                  >
+                    {tf} {sig === "UP_ARROW" ? "🟢" : sig === "DOWN_ARROW" ? "🔴" : "–"}
+                  </span>
+                ))}
                 <span className="text-xs text-slate-400">
                   Price {s.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
                 </span>
@@ -614,7 +650,7 @@ function Dashboard() {
                 </span>
                 {a.kind === "nw" && (
                   <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
-                    Nadaraya-Watson 15m
+                    Nadaraya-Watson {a.tf ?? ""}
                   </span>
                 )}
                 {a.rvol > 0 && (
