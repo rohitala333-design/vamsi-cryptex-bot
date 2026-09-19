@@ -562,7 +562,7 @@ function Dashboard() {
         <section className="rounded-2xl border border-slate-800 bg-slate-900/70">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              ✨ Nadaraya-Watson Envelope · 15m
+              ✨ Nadaraya-Watson Envelope · 5m / 15m / 1h
             </h2>
             <span className="text-xs text-slate-500">
               {nwTime ? `Updated at ${nwTime}` : "Scanning…"}
@@ -571,7 +571,7 @@ function Dashboard() {
           <div className="divide-y divide-slate-800">
             {nwSignals.length === 0 && (
               <p className="px-4 py-4 text-sm text-slate-500">
-                No band touches on the last 15m candle — waiting for the next arrow.
+                No band crosses on 5m / 15m / 1h — waiting for the next arrow.
               </p>
             )}
             {nwSignals.map((s) => (
@@ -580,15 +580,26 @@ function Dashboard() {
                 className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm"
               >
                 <span className="font-semibold">{s.symbol}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    s.signal === "BUY"
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : "bg-red-500/15 text-red-400"
-                  }`}
-                >
-                  {s.signal === "BUY" ? "BUY 🟢 Green Arrow" : "SELL 🔴 Red Arrow"}
-                </span>
+                {(
+                  [
+                    ["5m", s.signal_5m],
+                    ["15m", s.signal_15m],
+                    ["1h", s.signal_1h],
+                  ] as const
+                ).map(([tf, sig]) => (
+                  <span
+                    key={tf}
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      sig === "UP_ARROW"
+                        ? "bg-emerald-500/15 text-emerald-400"
+                        : sig === "DOWN_ARROW"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-slate-800 text-slate-500"
+                    }`}
+                  >
+                    {tf} {sig === "UP_ARROW" ? "🟢" : sig === "DOWN_ARROW" ? "🔴" : "–"}
+                  </span>
+                ))}
                 <span className="text-xs text-slate-400">
                   Price {s.price.toLocaleString(undefined, { maximumFractionDigits: 6 })}
                 </span>
@@ -639,7 +650,7 @@ function Dashboard() {
                 </span>
                 {a.kind === "nw" && (
                   <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300">
-                    Nadaraya-Watson 15m
+                    Nadaraya-Watson {a.tf ?? ""}
                   </span>
                 )}
                 {a.rvol > 0 && (
