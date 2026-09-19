@@ -121,6 +121,7 @@ function Dashboard() {
   const [scanned, setScanned] = useState(0);
   const [nwSignals, setNwSignals] = useState<NadarayaSignal[]>([]);
   const [nwTime, setNwTime] = useState("");
+  const [nwScanning, setNwScanning] = useState(false);
   const [feedError, setFeedError] = useState("");
   const [listening, setListening] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -144,13 +145,14 @@ function Dashboard() {
   nwRef.current = nwSignals;
 
 
-  // Nadaraya-Watson 15m envelope scanner
-  useEffect(() => {
-    let stopped = false;
-    const run = async () => {
-      try {
-        const res = await getNadarayaSignals();
-        if (stopped) return;
+  // Nadaraya-Watson 15m envelope scanner (auto-poll + manual refresh)
+  const stoppedRef = useRef(false);
+  const runNwScan = useCallback(async () => {
+    if (nwScanning) return;
+    setNwScanning(true);
+    try {
+      const res = await getNadarayaSignals();
+      if (stoppedRef.current) return;
         setNwSignals(res.signals);
         setNwTime(istTime());
 
