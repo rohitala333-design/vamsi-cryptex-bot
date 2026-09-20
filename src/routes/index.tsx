@@ -146,10 +146,12 @@ function Dashboard() {
   nwRef.current = nwSignals;
 
 
-  // Nadaraya-Watson 15m envelope scanner (auto-poll + manual refresh)
+  // Nadaraya-Watson envelope scanner (auto-poll + manual refresh, with retries)
   const stoppedRef = useRef(false);
-  const runNwScan = useCallback(async () => {
-    if (nwScanning) return;
+  const scanningRef = useRef(false);
+  const runNwScan = useCallback(async (attempt = 0) => {
+    if (scanningRef.current) return;
+    scanningRef.current = true;
     setNwScanning(true);
     setNwError(false);
     try {
@@ -185,16 +187,27 @@ function Dashboard() {
           });
         }
     } catch {
-      if (!stoppedRef.current) setNwError(true);
+      if (stoppedRef.current) return;
+      setNwError(true);
+      // Auto-reconnect: retry a few times with backoff before giving up.
+      if (attempt < 3) {
+        scanningRef.current = false;
+        setNwScanning(false);
+        setTimeout(() => {
+          if (!stoppedRef.current) runNwScan(attempt + 1);
+        }, 3000 * (attempt + 1));
+        return;
+      }
     } finally {
+      scanningRef.current = false;
       if (!stoppedRef.current) setNwScanning(false);
     }
-  }, [nwScanning]);
+  }, []);
 
   useEffect(() => {
     stoppedRef.current = false;
     runNwScan();
-    const id = setInterval(runNwScan, 60000);
+    const id = setInterval(() => runNwScan(), 60000);
     return () => {
       stoppedRef.current = true;
       clearInterval(id);
