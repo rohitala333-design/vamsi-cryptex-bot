@@ -225,6 +225,7 @@ function Dashboard() {
         const res = await getTopFutures();
         if (stopped) return;
         setScanned(res.scanned);
+        failures = 0;
         setFeedError("");
         setClock(istTime());
 
