@@ -146,10 +146,12 @@ function Dashboard() {
   nwRef.current = nwSignals;
 
 
-  // Nadaraya-Watson 15m envelope scanner (auto-poll + manual refresh)
+  // Nadaraya-Watson envelope scanner (auto-poll + manual refresh, with retries)
   const stoppedRef = useRef(false);
-  const runNwScan = useCallback(async () => {
-    if (nwScanning) return;
+  const scanningRef = useRef(false);
+  const runNwScan = useCallback(async (attempt = 0) => {
+    if (scanningRef.current) return;
+    scanningRef.current = true;
     setNwScanning(true);
     setNwError(false);
     try {
@@ -185,16 +187,27 @@ function Dashboard() {
           });
         }
     } catch {
-      if (!stoppedRef.current) setNwError(true);
+      if (stoppedRef.current) return;
+      setNwError(true);
+      // Auto-reconnect: retry a few times with backoff before giving up.
+      if (attempt < 3) {
+        scanningRef.current = false;
+        setNwScanning(false);
+        setTimeout(() => {
+          if (!stoppedRef.current) runNwScan(attempt + 1);
+        }, 3000 * (attempt + 1));
+        return;
+      }
     } finally {
+      scanningRef.current = false;
       if (!stoppedRef.current) setNwScanning(false);
     }
-  }, [nwScanning]);
+  }, []);
 
   useEffect(() => {
     stoppedRef.current = false;
     runNwScan();
-    const id = setInterval(runNwScan, 60000);
+    const id = setInterval(() => runNwScan(), 60000);
     return () => {
       stoppedRef.current = true;
       clearInterval(id);
@@ -205,12 +218,14 @@ function Dashboard() {
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
     let stopped = false;
+    let failures = 0;
 
     const load = async () => {
       try {
         const res = await getTopFutures();
         if (stopped) return;
         setScanned(res.scanned);
+        failures = 0;
         setFeedError("");
         setClock(istTime());
 
@@ -259,7 +274,17 @@ function Dashboard() {
           });
         }
       } catch {
-        if (!stopped) setFeedError("Live feed unreachable — retrying…");
+        if (stopped) return;
+        failures += 1;
+        setFeedError(
+          failures > 3
+            ? "Live feed unreachable — reconnecting every few seconds…"
+            : "Live feed hiccup — reconnecting…"
+        );
+        // Fast auto-reconnect attempt ahead of the normal 15s poll.
+        setTimeout(() => {
+          if (!stopped) load();
+        }, Math.min(2000 * failures, 10000));
       }
     };
 
@@ -578,18 +603,22 @@ function Dashboard() {
             <div className="flex items-center gap-3">
               <span
                 id="status-text"
-                className={`text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
+                className={`flex items-center gap-1.5 text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
               >
+                {nwScanning && (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
+                )}
                 {nwScanning
                   ? "Scanning 200 Pairs... Please wait"
                   : nwError
                     ? "Live Feed Unreachable - Try Again"
                     : nwTime
-                      ? `Scan Completed! Updated at ${nwTime}`
+                      ? `Scan Completed! ${nwSignals.length} matches · ${nwTime}`
                       : "Scanning Data…"}
               </span>
               <button
                 id="refresh-btn"
+                type="button"
                 onClick={() => runNwScan()}
                 disabled={nwScanning}
                 className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -599,7 +628,18 @@ function Dashboard() {
             </div>
           </div>
           <div className="divide-y divide-slate-800">
-            {nwSignals.length === 0 && (
+            {nwScanning && nwSignals.length === 0 && (
+              <p className="px-4 py-4 text-sm text-cyan-300">
+                Scanning 200 pairs across 5m / 15m / 1h…
+              </p>
+            )}
+            {!nwScanning && nwError && (
+              <p className="px-4 py-4 text-sm text-red-400">
+                Live feed unreachable — the scan could not reach the market data provider. Press
+                “Refresh Nadaraya Scan” to try again.
+              </p>
+            )}
+            {!nwScanning && !nwError && nwSignals.length === 0 && (
               <p className="px-4 py-4 text-sm text-slate-500">
                 No band crosses on 5m / 15m / 1h — waiting for the next arrow.
               </p>
