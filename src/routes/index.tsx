@@ -218,6 +218,7 @@ function Dashboard() {
   // Live Binance futures scanner (top 200 USDT perps by 24h volume)
   useEffect(() => {
     let stopped = false;
+    let failures = 0;
 
     const load = async () => {
       try {
@@ -272,7 +273,17 @@ function Dashboard() {
           });
         }
       } catch {
-        if (!stopped) setFeedError("Live feed unreachable — retrying…");
+        if (stopped) return;
+        failures += 1;
+        setFeedError(
+          failures > 3
+            ? "Live feed unreachable — reconnecting every few seconds…"
+            : "Live feed hiccup — reconnecting…"
+        );
+        // Fast auto-reconnect attempt ahead of the normal 15s poll.
+        setTimeout(() => {
+          if (!stopped) load();
+        }, Math.min(2000 * failures, 10000));
       }
     };
 
