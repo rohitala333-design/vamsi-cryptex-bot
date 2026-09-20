@@ -603,18 +603,22 @@ function Dashboard() {
             <div className="flex items-center gap-3">
               <span
                 id="status-text"
-                className={`text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
+                className={`flex items-center gap-1.5 text-xs ${nwError ? "text-red-400" : "text-slate-500"}`}
               >
+                {nwScanning && (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
+                )}
                 {nwScanning
                   ? "Scanning 200 Pairs... Please wait"
                   : nwError
                     ? "Live Feed Unreachable - Try Again"
                     : nwTime
-                      ? `Scan Completed! Updated at ${nwTime}`
+                      ? `Scan Completed! ${nwSignals.length} matches · ${nwTime}`
                       : "Scanning Data…"}
               </span>
               <button
                 id="refresh-btn"
+                type="button"
                 onClick={() => runNwScan()}
                 disabled={nwScanning}
                 className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -624,7 +628,18 @@ function Dashboard() {
             </div>
           </div>
           <div className="divide-y divide-slate-800">
-            {nwSignals.length === 0 && (
+            {nwScanning && nwSignals.length === 0 && (
+              <p className="px-4 py-4 text-sm text-cyan-300">
+                Scanning 200 pairs across 5m / 15m / 1h…
+              </p>
+            )}
+            {!nwScanning && nwError && (
+              <p className="px-4 py-4 text-sm text-red-400">
+                Live feed unreachable — the scan could not reach the market data provider. Press
+                “Refresh Nadaraya Scan” to try again.
+              </p>
+            )}
+            {!nwScanning && !nwError && nwSignals.length === 0 && (
               <p className="px-4 py-4 text-sm text-slate-500">
                 No band crosses on 5m / 15m / 1h — waiting for the next arrow.
               </p>
